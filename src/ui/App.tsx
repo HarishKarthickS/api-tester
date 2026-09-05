@@ -14,6 +14,8 @@ import {
 } from "../domain/request";
 import { executeCall, prepareCall, type CallResult } from "../domain/send";
 import { loadBench, saveBench } from "../data/store";
+import { seedCollection, seedEnvironment } from "../data/seed";
+import { EmptyPane } from "./EmptyPane";
 import "./bench.css";
 
 export function App() {
@@ -107,6 +109,27 @@ export function App() {
     setResult(null);
   }
 
+  function dropFrames() {
+    if (!collection) return;
+    setCollections((cols) =>
+      cols.map((c) => (c.id === collection.id ? { ...c, requests: [] } : c)),
+    );
+    setReqId(null);
+    setResult(null);
+    setPrepNote(null);
+  }
+
+  function reloadSeed() {
+    const col = seedCollection();
+    setCollections([col]);
+    setEnv(seedEnvironment());
+    setColId(col.id);
+    setReqId(col.requests[0]?.id ?? null);
+    setHistory([]);
+    setResult(null);
+    setPrepNote(null);
+  }
+
   const pretty = prettyJson(result?.bodyText ?? "");
   const hex = hexDump(pretty.pretty || result?.bodyText || "");
 
@@ -129,21 +152,23 @@ export function App() {
           </div>
           <div className="pane-body">
             {collections.length === 0 || !collection ? (
-              <div className="idle-fill">
-                <strong>No frames loaded</strong>
-                Capture a collection to fill this list.
-              </div>
+              <EmptyPane kind="collection">
+                <button className="ghost" type="button" onClick={reloadSeed}>
+                  Load httpbin
+                </button>
+              </EmptyPane>
             ) : (
               <>
                 <div className="col-name">{collection.name}</div>
                 {collection.requests.length === 0 ? (
-                  <div className="idle-fill">
-                    <strong>Empty capture</strong>
-                    This collection has no requests yet.
+                  <EmptyPane kind="frames">
                     <button className="ghost" type="button" onClick={addRequest}>
                       Add frame
                     </button>
-                  </div>
+                    <button className="ghost" type="button" onClick={reloadSeed}>
+                      Reload httpbin
+                    </button>
+                  </EmptyPane>
                 ) : (
                   collection.requests.map((r, i) => (
                     <button
@@ -165,6 +190,9 @@ export function App() {
                 <div className="pane-actions">
                   <button className="ghost" type="button" onClick={addRequest}>
                     Add frame
+                  </button>
+                  <button className="ghost" type="button" onClick={dropFrames}>
+                    Drop frames
                   </button>
                 </div>
                 <div className="hist-head">History</div>
@@ -191,10 +219,7 @@ export function App() {
           </div>
           <div className="pane-body request-form">
             {!request ? (
-              <div className="idle-fill">
-                <strong>No request selected</strong>
-                Pick a frame on the left to edit method, URL, headers, and body.
-              </div>
+              <EmptyPane kind="request" />
             ) : (
               <>
                 <label className="field">
@@ -337,16 +362,9 @@ export function App() {
           </div>
           <div className="pane-body dump">
             {!result ? (
-              <div className="idle-fill">
-                <strong>No payload</strong>
-                Bytes show here after a send — offset, hex, ASCII, then pretty JSON.
-              </div>
+              <EmptyPane kind="payload" />
             ) : result.error ? (
-              <div className="idle-fill fault-box">
-                <strong>Transport fault</strong>
-                {result.error}
-                <span className="hint">Check URL, CORS, or that the host is reachable.</span>
-              </div>
+              <EmptyPane kind="fault" detail={result.error} />
             ) : (
               <>
                 <div className="dump-tabs">
@@ -370,10 +388,7 @@ export function App() {
                 ) : null}
                 {dumpTab === "hex" ? (
                   hex.length === 0 ? (
-                    <div className="idle-fill">
-                      <strong>Empty body</strong>
-                      The response carried no bytes to dump.
-                    </div>
+                    <EmptyPane kind="bytes" />
                   ) : (
                     <pre className="hex">
                       {hex.map((line) => (
