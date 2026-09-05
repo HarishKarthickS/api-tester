@@ -203,9 +203,20 @@ input {
   font-size: 11px;
 }
 
-.idle-fill .ghost {
+.idle-fill > span {
+  display: block;
+}
   display: inline-block;
   margin-top: 12px;
+  margin-right: 8px;
+}
+
+.detail {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--fault);
+  font-family: "Fira Code", monospace;
+  font-size: 11px;
 }
 
 .col-name {
@@ -232,6 +243,9 @@ input {
 }
 
 .pane-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
   padding: 8px;
 }
 
