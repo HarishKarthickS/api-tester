@@ -4,28 +4,28 @@ type EmptyKind = "collection" | "frames" | "request" | "payload" | "bytes" | "fa
 
 const COPY: Record<EmptyKind, { title: string; body: string }> = {
   collection: {
-    title: "No frames loaded",
-    body: "Capture a collection to fill this list.",
+    title: "No collection",
+    body: "Load a sample collection to start sending requests.",
   },
   frames: {
-    title: "Empty capture",
-    body: "This collection has no requests. Add a frame or reload the httpbin seed.",
+    title: "No requests",
+    body: "This collection is empty. Add a request or load the httpbin sample.",
   },
   request: {
     title: "No request selected",
-    body: "Pick a frame on the left to edit method, URL, headers, and body.",
+    body: "Choose a request from the collection to edit method, URL, headers, and body.",
   },
   payload: {
-    title: "No payload",
-    body: "Bytes show here after a send — offset, hex, ASCII, then pretty JSON.",
+    title: "No response yet",
+    body: "Send a request to see status, headers, and body here.",
   },
   bytes: {
     title: "Empty body",
-    body: "The response carried no bytes to dump.",
+    body: "The response had no content.",
   },
   fault: {
-    title: "Transport fault",
-    body: "Check URL, CORS, or that the host is reachable.",
+    title: "Request failed",
+    body: "Check the URL, CORS, or that the host is reachable.",
   },
 };
 

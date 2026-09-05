@@ -18,6 +18,8 @@ import { seedCollection, seedEnvironment } from "../data/seed";
 import { EmptyPane } from "./EmptyPane";
 import "./bench.css";
 
+type ResponseTab = "body" | "headers" | "hex";
+
 export function App() {
   const initial = useMemo(() => loadBench(), []);
   const [collections, setCollections] = useState<Collection[]>(initial.collections);
@@ -28,7 +30,7 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<CallResult | null>(null);
   const [prepNote, setPrepNote] = useState<string | null>(null);
-  const [dumpTab, setDumpTab] = useState<"hex" | "json">("hex");
+  const [responseTab, setResponseTab] = useState<ResponseTab>("body");
 
   const collection = collections.find((c) => c.id === colId) ?? collections[0] ?? null;
   const request = collection?.requests.find((r) => r.id === reqId) ?? null;
@@ -68,12 +70,12 @@ export function App() {
     if (!request) return;
     const { call, missing } = prepareCall(request, env);
     if (missing.length > 0) {
-      setPrepNote(`unresolved tokens: ${missing.map((m) => `{{${m}}}`).join(", ")}`);
+      setPrepNote(`Unresolved variables: ${missing.map((m) => `{{${m}}}`).join(", ")}`);
       setResult(null);
       return;
     }
     if (!call.url.trim()) {
-      setPrepNote("URL is empty");
+      setPrepNote("Enter a URL before sending.");
       setResult(null);
       return;
     }
@@ -94,12 +96,12 @@ export function App() {
         error: out.error,
       }),
     );
-    setDumpTab(out.error ? "json" : "hex");
+    setResponseTab("body");
   }
 
   function addRequest() {
     if (!collection) return;
-    const next = emptyRequest(`frame ${collection.requests.length + 1}`);
+    const next = emptyRequest(`Request ${collection.requests.length + 1}`);
     setCollections((cols) =>
       cols.map((c) =>
         c.id === collection.id ? { ...c, requests: [...c.requests, next] } : c,
@@ -109,7 +111,7 @@ export function App() {
     setResult(null);
   }
 
-  function dropFrames() {
+  function clearRequests() {
     if (!collection) return;
     setCollections((cols) =>
       cols.map((c) => (c.id === collection.id ? { ...c, requests: [] } : c)),
@@ -132,29 +134,33 @@ export function App() {
 
   const pretty = prettyJson(result?.bodyText ?? "");
   const hex = hexDump(pretty.pretty || result?.bodyText || "");
+  const statusClass =
+    result && !result.error && result.status != null && result.status >= 200 && result.status < 300
+      ? "status-ok"
+      : result && (result.error || (result.status != null && result.status >= 400))
+        ? "status-bad"
+        : "";
 
   return (
     <div className="bench">
       <header className="mast">
         <span>api-tester</span>
-        <span className="sep">//</span>
-        <span>http frame bench</span>
         <span className="sep">·</span>
-        <span>env {env.name}</span>
+        <span>{env.name}</span>
         <span className="sep">·</span>
-        <span>{busy ? "tx" : "idle"}</span>
+        <span className={busy ? "status-ok" : ""}>{busy ? "Sending…" : "Ready"}</span>
       </header>
       <div className="panes">
         <section className="pane" aria-label="collection">
           <div className="pane-head">
             <span>Collection</span>
-            <span>n={collection?.requests.length ?? 0}</span>
+            <span>{collection?.requests.length ?? 0}</span>
           </div>
           <div className="pane-body">
             {collections.length === 0 || !collection ? (
               <EmptyPane kind="collection">
                 <button className="ghost" type="button" onClick={reloadSeed}>
-                  Load httpbin
+                  Load sample collection
                 </button>
               </EmptyPane>
             ) : (
@@ -163,10 +169,10 @@ export function App() {
                 {collection.requests.length === 0 ? (
                   <EmptyPane kind="frames">
                     <button className="ghost" type="button" onClick={addRequest}>
-                      Add frame
+                      New request
                     </button>
                     <button className="ghost" type="button" onClick={reloadSeed}>
-                      Reload httpbin
+                      Load sample collection
                     </button>
                   </EmptyPane>
                 ) : (
@@ -181,7 +187,7 @@ export function App() {
                         setPrepNote(null);
                       }}
                     >
-                      <span className="idx">{String(i).padStart(2, "0")}</span>
+                      <span className="idx">{String(i + 1).padStart(2, "0")}</span>
                       <span className={`method ${r.method.toLowerCase()}`}>{r.method}</span>
                       <span className="req-name">{r.name}</span>
                     </button>
@@ -189,15 +195,15 @@ export function App() {
                 )}
                 <div className="pane-actions">
                   <button className="ghost" type="button" onClick={addRequest}>
-                    Add frame
+                    New request
                   </button>
-                  <button className="ghost" type="button" onClick={dropFrames}>
-                    Drop frames
+                  <button className="ghost" type="button" onClick={clearRequests}>
+                    Clear requests
                   </button>
                 </div>
                 <div className="hist-head">History</div>
                 {history.length === 0 ? (
-                  <p className="hist-empty">No exchanges yet.</p>
+                  <p className="hist-empty">No requests sent yet.</p>
                 ) : (
                   history.map((h) => (
                     <div key={h.id} className={`hist-row ${h.ok ? "ok" : "fail"}`}>
@@ -215,7 +221,7 @@ export function App() {
         <section className="pane" aria-label="request">
           <div className="pane-head">
             <span>Request</span>
-            <span>{request ? request.method : "idle"}</span>
+            <span>{request ? request.method : "—"}</span>
           </div>
           <div className="pane-body request-form">
             {!request ? (
@@ -245,6 +251,7 @@ export function App() {
                     value={request.url}
                     onChange={(e) => patchRequest({ url: e.target.value })}
                     spellCheck={false}
+                    placeholder="https://"
                   />
                   <button className="send" type="button" disabled={busy} onClick={() => void send()}>
                     {busy ? "…" : "Send"}
@@ -303,7 +310,7 @@ export function App() {
                   spellCheck={false}
                   rows={8}
                 />
-                <div className="subhead">Env {env.name}</div>
+                <div className="subhead">Environment · {env.name}</div>
                 {env.vars.map((v) => (
                   <div key={v.id} className="env-row">
                     <input
@@ -342,22 +349,22 @@ export function App() {
                     })
                   }
                 >
-                  Add var
+                  Add variable
                 </button>
               </>
             )}
           </div>
         </section>
 
-        <section className="pane" aria-label="dump">
+        <section className="pane" aria-label="response">
           <div className="pane-head">
-            <span>Dump</span>
-            <span>
+            <span>Response</span>
+            <span className={statusClass}>
               {result?.error
-                ? "fault"
+                ? "Error"
                 : result?.status != null
                   ? `${result.status} ${result.statusText} · ${result.ms}ms`
-                  : "hex / json"}
+                  : "—"}
             </span>
           </div>
           <div className="pane-body dump">
@@ -370,23 +377,47 @@ export function App() {
                 <div className="dump-tabs">
                   <button
                     type="button"
-                    className={dumpTab === "hex" ? "on" : ""}
-                    onClick={() => setDumpTab("hex")}
+                    className={responseTab === "body" ? "on" : ""}
+                    onClick={() => setResponseTab("body")}
                   >
-                    Hex
+                    Body
                   </button>
                   <button
                     type="button"
-                    className={dumpTab === "json" ? "on" : ""}
-                    onClick={() => setDumpTab("json")}
+                    className={responseTab === "headers" ? "on" : ""}
+                    onClick={() => setResponseTab("headers")}
                   >
-                    JSON
+                    Headers
+                  </button>
+                  <button
+                    type="button"
+                    className={responseTab === "hex" ? "on" : ""}
+                    onClick={() => setResponseTab("hex")}
+                  >
+                    Hex
                   </button>
                 </div>
                 {result.status != null && result.status >= 400 ? (
-                  <p className="fault">HTTP {result.status} {result.statusText}</p>
+                  <p className="fault">
+                    HTTP {result.status} {result.statusText}
+                  </p>
                 ) : null}
-                {dumpTab === "hex" ? (
+                {responseTab === "headers" ? (
+                  result.headers.length === 0 ? (
+                    <p className="hist-empty">No response headers.</p>
+                  ) : (
+                    <table className="hdrs resp-hdrs">
+                      <tbody>
+                        {result.headers.map(([key, value]) => (
+                          <tr key={`${key}:${value}`}>
+                            <td className="hdr-key">{key}</td>
+                            <td>{value}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )
+                ) : responseTab === "hex" ? (
                   hex.length === 0 ? (
                     <EmptyPane kind="bytes" />
                   ) : (
@@ -400,8 +431,10 @@ export function App() {
                       ))}
                     </pre>
                   )
+                ) : pretty.pretty || result.bodyText ? (
+                  <pre className="json">{pretty.pretty || result.bodyText}</pre>
                 ) : (
-                  <pre className="json">{pretty.pretty || "(empty)"}</pre>
+                  <EmptyPane kind="bytes" />
                 )}
               </>
             )}
@@ -409,10 +442,8 @@ export function App() {
         </section>
       </div>
       <footer className="foot">
-        <span>
-          {request ? `${request.method} ${request.url}` : "ready"}
-        </span>
-        <span>history {history.length}</span>
+        <span>{request ? `${request.method} ${request.url}` : "Select a request"}</span>
+        <span>{history.length} in history</span>
       </footer>
     </div>
   );
